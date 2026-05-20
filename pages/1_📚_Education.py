@@ -29,15 +29,23 @@ from education.parity import parity_check, implied_rate_from_parity
 from education.bounds import check_bounds
 from ui.charts.payoff_diagram import payoff_chart
 from ui.charts.greeks_visualizer import greek_vs_spot, greek_surface, all_greeks_panel
+from ui.styling import inject_premium_css
+from ui.components.header_strip import render_header_strip
 import plotly.graph_objects as go
 
 
-st.set_page_config(page_title="Education — Options Lab", page_icon="📚", layout="wide")
+st.set_page_config(page_title="Education — Options Lab", page_icon="📚", layout="wide",
+                   initial_sidebar_state="collapsed")
+inject_premium_css()
+render_header_strip()
 
-st.title("📚 Educación — Hull-driven")
-st.caption(
-    "Recorrido interactivo para preparar parcial. Cada tab cubre uno o dos capítulos de "
-    "*Options, Futures and Other Derivatives* (Hull)."
+st.markdown(
+    '<h1 style="margin:0;font-weight:600;">Educación · Hull-driven</h1>'
+    '<div style="color:var(--text-muted);font-size:13px;margin-bottom:24px;">'
+    'Recorrido interactivo para parcial. Cada tab cubre uno o dos capítulos de '
+    '<i>Options, Futures and Other Derivatives</i> (Hull).'
+    '</div>',
+    unsafe_allow_html=True,
 )
 
 tab_intro, tab_props, tab_strats, tab_greeks = st.tabs([
@@ -227,14 +235,14 @@ principales. Acá las podés armar y ver el payoff al vencimiento + cómo se ve 
         ],
     )
 
-    # Parámetros de mercado comunes
-    with st.sidebar:
-        st.subheader("Parámetros de mercado")
-        S0 = st.number_input("Spot actual", min_value=1.0, value=100.0, step=1.0, key="strat_S")
-        sigma_strat = st.slider("Vol asumida σ", 0.05, 1.0, 0.25, 0.01, key="strat_sigma")
-        r_strat = st.slider("Tasa r", 0.0, 0.5, 0.05, 0.005, key="strat_r")
-        q_strat = st.slider("Dividend yield q", 0.0, 0.20, 0.0, 0.005, key="strat_q")
-        T_strat = st.slider("T (años)", 0.05, 2.0, 0.5, 0.05, key="strat_T")
+    # Parámetros de mercado del tab — DENTRO del tab, no en sidebar global
+    with st.expander("⚙️  Parámetros de mercado", expanded=True):
+        ec1, ec2, ec3, ec4, ec5 = st.columns(5)
+        S0 = ec1.number_input("Spot", min_value=1.0, value=100.0, step=1.0, key="strat_S")
+        sigma_strat = ec2.slider("Vol σ", 0.05, 1.0, 0.25, 0.01, key="strat_sigma")
+        r_strat = ec3.slider("Tasa r", 0.0, 0.5, 0.05, 0.005, key="strat_r")
+        q_strat = ec4.slider("Div yield q", 0.0, 0.20, 0.0, 0.005, key="strat_q")
+        T_strat = ec5.slider("T (años)", 0.05, 2.0, 0.5, 0.05, key="strat_T")
 
     # Construcción de la estrategia con BS premiums por default
     def bs_call(K_):

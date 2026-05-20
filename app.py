@@ -1,51 +1,90 @@
-"""
-Options Lab AR — Landing.
-
-Streamlit auto-genera el sidebar con las páginas en /pages.
-"""
+"""Options Lab — landing / market dashboard."""
 from __future__ import annotations
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import streamlit as st
 
-st.set_page_config(page_title="Options Lab AR", page_icon="📊", layout="wide")
+from ui.styling import inject_premium_css
+from ui.components.header_strip import render_header_strip
+from data.tickers import UNIVERSE
 
-st.title("📊 Options Lab AR")
+st.set_page_config(
+    page_title="Options Lab",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+inject_premium_css()
+render_header_strip()
+
+# Hero
 st.markdown(
-    """
-Laboratorio personal de opciones, construido en Python + Streamlit.
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
+    '<h1 style="margin:0;font-weight:600;letter-spacing:-0.5px;">Options Lab</h1>'
+    '<span style="color:var(--text-muted);font-size:13px;">'
+    'Hull-driven · real-time chains · personal use</span>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+st.markdown('<hr style="border-color:var(--border);margin:12px 0 24px;">', unsafe_allow_html=True)
 
-### Partes de la app
+# Quick stats
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Universo de tickers", len(UNIVERSE))
+c2.metric("Modelos de pricing", "4", help="BS · Binomial CRR · Leisen-Reimer · Monte Carlo")
+c3.metric("Greeks closed-form", "5", help="Δ Γ ν Θ ρ")
+c4.metric("Estrategias", "11", help="Spreads, straddles, butterflies, condors, collars")
 
-📚 **Educación** *(disponible)* — Recorrido interactivo basado en Hull, "Options, Futures and Other Derivatives".
-Cubre Cap 1, 9, 10, 11 y 18: payoffs, propiedades, put-call parity, estrategias multi-leg, las griegas
-y cómo se comportan. Hecho para preparar parcial.
+# Categorías
+st.markdown("### Universo cubierto")
+by_cat: dict[str, list] = {}
+for t in UNIVERSE:
+    by_cat.setdefault(t.category, []).append(t)
 
-🎲 **Monte Carlo** *(disponible)* — Hull Cap 13. Procesos de Wiener, movimiento Browniano geométrico,
-visualización de paths y pricing por simulación con convergencia explícita a Black-Scholes.
+cols = st.columns(len(by_cat))
+for col, (cat, tickers) in zip(cols, by_cat.items()):
+    with col:
+        sample = ", ".join(t.symbol for t in tickers[:5])
+        suffix = " ..." if len(tickers) > 5 else ""
+        st.markdown(
+            f'<div class="premium-card">'
+            f'<div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">{cat}</div>'
+            f'<div style="font-family:JetBrains Mono;color:var(--accent);font-size:18px;font-weight:600;margin-top:4px;">'
+            f'{len(tickers)} tickers</div>'
+            f'<div style="font-family:JetBrains Mono;color:var(--text-muted);font-size:11px;margin-top:6px;">'
+            f'{sample}{suffix}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
-🇦🇷 **Mercado AR** *(próximamente)* — Chains reales de BYMA, IV surface, scanner de oportunidades.
-Subyacentes líquidos: GGAL, YPF, BMA, PAMP, ALUA, TECO2, BBAR, CRES, METR, COME, EDN, TXAR.
-
-🧠 **AI Scanner** *(próximamente)* — Análisis automatizado de chains AR con LLM
-para detectar skew anómalo, calendar spreads atractivos y warnings de liquidez.
-
----
-
-### Pricing engine
-
-- **Black-Scholes-Merton** analítico con greeks closed-form
-- **Binomial** Cox-Ross-Rubinstein y Leisen-Reimer (americanas + europeas)
-- **Implied vol** vía Brent's method
-
-Verificación numérica anclada en Hull Ejemplo 14.6:
-S=42, K=40, T=0.5, r=0.10, σ=0.20 → Call=4.7594, Put=0.8086.
-
-👈 Abrí **Education** en el sidebar para arrancar.
-"""
+st.markdown("### Navegación")
+nav1, nav2, nav3 = st.columns(3)
+nav1.markdown(
+    '<div class="premium-card">'
+    '<div style="font-weight:600;font-size:16px;">📚 Education</div>'
+    '<div style="color:var(--text-muted);font-size:13px;margin-top:4px;">'
+    'Hull Cap 1, 9, 10, 11, 18 — parcial prep con widgets interactivos.</div></div>',
+    unsafe_allow_html=True,
+)
+nav2.markdown(
+    '<div class="premium-card">'
+    '<div style="font-weight:600;font-size:16px;">📈 Market Lab</div>'
+    '<div style="color:var(--text-muted);font-size:13px;margin-top:4px;">'
+    'Chain real de yfinance · greeks calculadas con engine · strategy builder sobre quotes reales.'
+    '</div></div>',
+    unsafe_allow_html=True,
+)
+nav3.markdown(
+    '<div class="premium-card">'
+    '<div style="font-weight:600;font-size:16px;">🎲 Monte Carlo</div>'
+    '<div style="color:var(--text-muted);font-size:13px;margin-top:4px;">'
+    'Hull Cap 13 — Wiener processes, paths GBM, pricing por simulación.</div></div>',
+    unsafe_allow_html=True,
 )
 
-st.divider()
-st.caption(
-    "Hecho con Python · Streamlit · Plotly · NumPy · SciPy. "
-    "Referencia: Hull, J.C. *Options, Futures and Other Derivatives*. "
-    "Pricing engine validado contra Ejemplo 14.6."
-)
+st.caption("Data: yfinance (delay ~15 min). Cache: prices 60s · chains 5min · rate 1h.")

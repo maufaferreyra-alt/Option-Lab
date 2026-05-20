@@ -58,7 +58,23 @@ symbol = custom.strip().upper() if custom.strip() else selected
 
 q = get_quote(symbol)
 if q is None:
-    st.error(f"No se pudo cargar quote de {symbol}. Revisar conexión / símbolo.")
+    st.markdown(
+        f'<div style="background:var(--surface);border:1px solid var(--border);'
+        f'border-radius:8px;padding:18px 22px;margin:12px 0 18px;">'
+        f'<div style="color:var(--negative);font-size:14px;font-weight:600;margin-bottom:6px;">'
+        f'⚠ No se pudo cargar quote de <span class="mono">{symbol}</span></div>'
+        f'<div style="color:var(--text-muted);font-size:12px;line-height:1.6;">'
+        f'Causa más probable: Yahoo está throttling las IPs de Streamlit Cloud. '
+        f'El resto de la app sigue funcionando — Education y Monte Carlo no dependen '
+        f'de yfinance. Podés también probar otro ticker (algunos tienen mejor disponibilidad).'
+        f'</div></div>',
+        unsafe_allow_html=True,
+    )
+    rc1, rc2 = st.columns([1, 4])
+    if rc1.button("↻ Reintentar", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+    rc2.page_link("app.py", label="← Volver al landing")
     st.stop()
 
 # Cards de spot

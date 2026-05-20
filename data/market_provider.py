@@ -1,6 +1,11 @@
 """
 yfinance wrapper con cache, sanity gates y normalización.
 
+Importante — Yahoo bloquea las IPs de Streamlit Cloud cuando la TLS fingerprint
+es la del Python `urllib3` default. Solución: usar `curl_cffi.Session(impersonate=
+'chrome')` para que las requests parezcan venir de Chrome real. Esto es la fix
+recomendada por yfinance.
+
 La UI puede confiar en que:
 - Quote es None ⟺ provider falló (jamás traceback al usuario)
 - Chain DataFrame siempre tiene columnas: strike, bid, ask, mid, volume,
@@ -25,6 +30,29 @@ import yfinance as yf
 log = logging.getLogger(__name__)
 
 OptionType = Literal["call", "put"]
+
+
+@st.cache_resource(show_spinner=False)
+def _get_session():
+    """
+    Session de curl_cffi que impersonates Chrome — la fix para Yahoo throttling
+    en Streamlit Cloud. cache_resource para reusar la session entre re-runs.
+
+    Si curl_cffi no está disponible (entorno raro), cae a None y yfinance usa
+    su session default — peor para Cloud pero al menos no rompe.
+    """
+    try:
+        from curl_cffi import requests as curl_requests
+        return curl_requests.Session(impersonate="chrome")
+    except ImportError:
+        log.warning("curl_cffi no disponible, usando session default de yfinance")
+        return None
+
+
+def _ticker(symbol: str) -> "yf.Ticker":
+    """Construye un yf.Ticker con la session impersonada."""
+    sess = _get_session()
+    return yf.Ticker(symbol, session=sess) if sess is not None else yf.Ticker(symbol)
 
 
 @dataclass
@@ -70,9 +98,9 @@ def get_quote(symbol: str) -> Quote | None:
       2) yf.download(...)                     — endpoint alternativo, otro path
       3) None graceful
     """
-    # Strategy 1: Ticker.history
+    # Strategy 1: Ticker.history con session impersonada (fix Streamlit Cloud)
     try:
-        t = yf.Ticker(symbol)
+        t = _ticker(symbol)
         hist = t.history(period="5d", auto_adjust=False)
         q = _quote_from_history(hist, symbol)
         if q is not None:
@@ -80,12 +108,14 @@ def get_quote(symbol: str) -> Quote | None:
     except Exception as e:
         log.info(f"Ticker.history falló para {symbol}: {e}")
 
-    # Strategy 2: yf.download (otro endpoint, suele bypassear throttling)
+    # Strategy 2: yf.download como fallback
     try:
-        df = yf.download(symbol, period="5d", progress=False,
-                         auto_adjust=False, threads=False)
+        sess = _get_session()
+        kwargs = {"progress": False, "auto_adjust": False, "threads": False}
+        if sess is not None:
+            kwargs["session"] = sess
+        df = yf.download(symbol, period="5d", **kwargs)
         if df is not None and not df.empty:
-            # yf.download a veces devuelve MultiIndex columns con 1 ticker
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             q = _quote_from_history(df, symbol)
@@ -107,7 +137,7 @@ def get_quotes_batch(symbols: tuple[str, ...]) -> dict[str, Quote | None]:
 @st.cache_data(ttl=300, show_spinner="Cargando expirations...")
 def get_options_expirations(symbol: str) -> list[str]:
     try:
-        t = yf.Ticker(symbol)
+        t = _ticker(symbol)
         return list(t.options or [])
     except Exception as e:
         log.warning(f"Falló traer expirations de {symbol}: {e}")
@@ -117,7 +147,7 @@ def get_options_expirations(symbol: str) -> list[str]:
 @st.cache_data(ttl=300, show_spinner="Cargando chain...")
 def get_option_chain(symbol: str, expiry: str) -> dict[str, pd.DataFrame] | None:
     try:
-        t = yf.Ticker(symbol)
+        t = _ticker(symbol)
         chain = t.option_chain(expiry)
         calls = _normalize_chain(chain.calls, "call")
         puts = _normalize_chain(chain.puts, "put")

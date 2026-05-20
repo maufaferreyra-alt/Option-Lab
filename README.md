@@ -10,13 +10,17 @@ Pricing engine validado contra Hull Ejemplo 14.6 (S=42, K=40, T=0.5, r=10%, σ=2
 ## Quickstart
 
 ```bash
-git clone <repo>
-cd options_lab_ar
+git clone https://github.com/maufaferreyra-alt/Option-Lab.git
+cd Option-Lab
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
 App abre en `http://localhost:8501`.
+
+> **Deploy público**: el repo está pensado para Streamlit Community Cloud — entrypoint
+> `app.py` en la raíz, deps en `requirements.txt`. Conectar el repo en
+> [share.streamlit.io](https://share.streamlit.io) y deployar.
 
 ## Tests
 
@@ -29,8 +33,8 @@ Se deben pasar todos. Anclados a Hull para tener verificación numérica externa
 ## Estructura
 
 ```
-options_lab_ar/
-├── app.py                          # Landing
+Option-Lab/
+├── app.py                          # Landing (entrypoint Streamlit)
 ├── pages/
 │   ├── 1_📚_Education.py           # 4 tabs (Hull Cap 1, 9, 10, 11, 18)
 │   └── 2_🎲_Monte_Carlo.py         # 4 tabs (Hull Cap 13: Wiener, GBM, paths, MC)

@@ -42,31 +42,60 @@ class Quote:
         return self.change >= 0
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def get_quote(symbol: str) -> Quote | None:
-    """
-    Devuelve el quote actual. Fuente primaria: `history(period='5d')` — más
-    confiable que `fast_info`, que tiende a romperse cuando Yahoo cambia metadata.
-    """
+def _quote_from_history(hist: pd.DataFrame, symbol: str) -> Quote | None:
+    """Construye Quote desde DataFrame OHLCV. Devuelve None si data insuficiente."""
+    if hist is None or hist.empty or len(hist) < 2:
+        return None
     try:
-        t = yf.Ticker(symbol)
-        hist = t.history(period="5d", auto_adjust=False)
-        if hist is None or hist.empty or len(hist) < 2:
-            log.warning(f"Sin history para {symbol}")
-            return None
         price = float(hist["Close"].iloc[-1])
         prev = float(hist["Close"].iloc[-2])
         vol = int(hist["Volume"].iloc[-1]) if "Volume" in hist.columns else 0
         if price <= 0 or prev <= 0:
-            log.warning(f"Quote inválido para {symbol}: price={price}, prev={prev}")
             return None
         change = price - prev
         change_pct = (change / prev) * 100.0 if prev else 0.0
         return Quote(symbol, price, change, change_pct, prev, vol,
                      datetime.now(timezone.utc))
-    except Exception as e:
-        log.warning(f"yfinance falló para {symbol}: {e}")
+    except (KeyError, ValueError, IndexError) as e:
+        log.warning(f"No se pudo armar Quote para {symbol}: {e}")
         return None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_quote(symbol: str) -> Quote | None:
+    """
+    Devuelve el quote actual. Triple estrategia para sobrevivir el throttling de
+    Yahoo en Streamlit Cloud:
+      1) yf.Ticker(...).history(period='5d')  — endpoint principal
+      2) yf.download(...)                     — endpoint alternativo, otro path
+      3) None graceful
+    """
+    # Strategy 1: Ticker.history
+    try:
+        t = yf.Ticker(symbol)
+        hist = t.history(period="5d", auto_adjust=False)
+        q = _quote_from_history(hist, symbol)
+        if q is not None:
+            return q
+    except Exception as e:
+        log.info(f"Ticker.history falló para {symbol}: {e}")
+
+    # Strategy 2: yf.download (otro endpoint, suele bypassear throttling)
+    try:
+        df = yf.download(symbol, period="5d", progress=False,
+                         auto_adjust=False, threads=False)
+        if df is not None and not df.empty:
+            # yf.download a veces devuelve MultiIndex columns con 1 ticker
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            q = _quote_from_history(df, symbol)
+            if q is not None:
+                return q
+    except Exception as e:
+        log.warning(f"yf.download también falló para {symbol}: {e}")
+
+    log.warning(f"Sin datos para {symbol} en ningún endpoint")
+    return None
 
 
 @st.cache_data(ttl=60, show_spinner=False)

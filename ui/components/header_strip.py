@@ -7,8 +7,8 @@ from data.tickers import HEADER_STRIP_TICKERS
 
 LABELS = {
     "SPY": "S&P 500",
-    "QQQ": "NASDAQ 100",
-    "IWM": "RUSSELL 2000",
+    "QQQ": "NASDAQ",
+    "IWM": "RUSSELL",
     "^VIX": "VIX",
     "^TNX": "US 10Y",
     "GLD": "GOLD",
@@ -17,8 +17,23 @@ LABELS = {
 
 
 def render_header_strip() -> None:
-    """Renderea el strip con quotes en vivo. Falla suave: si un quote es None, muestra '—'."""
+    """
+    Renderea el strip con quotes en vivo.
+    Si todos los quotes fallan, muestra un banner discreto en vez de N celdas vacías.
+    """
     quotes = get_quotes_batch(tuple(HEADER_STRIP_TICKERS))
+    valid = {k: v for k, v in quotes.items() if v is not None}
+
+    if not valid:
+        st.markdown(
+            '<div class="ticker-strip-empty">'
+            '⚠ Market data temporarily unavailable · yfinance throttled. '
+            'Funcionalidad de pricing/educación intacta.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
     cells = []
     for sym in HEADER_STRIP_TICKERS:
         q = quotes.get(sym)
@@ -27,7 +42,7 @@ def render_header_strip() -> None:
             cells.append(
                 f'<span class="ticker-cell">'
                 f'<span class="symbol">{label}</span>'
-                f'<span class="price" style="color:var(--text-muted)">—</span>'
+                f'<span class="price" style="color:var(--text-muted);font-size:13px;">—</span>'
                 f'</span>'
             )
             continue
@@ -40,10 +55,7 @@ def render_header_strip() -> None:
             f'<span class="delta {cls}">{arrow} {q.change_pct:+.2f}%</span>'
             f'</span>'
         )
-    html = (
-        '<div style="background: var(--surface); border: 1px solid var(--border); '
-        'border-radius: 6px; padding: 2px 0; margin-bottom: 16px; overflow-x: auto; '
-        'white-space: nowrap;">'
-        + "".join(cells) + "</div>"
+    st.markdown(
+        '<div class="ticker-strip">' + "".join(cells) + '</div>',
+        unsafe_allow_html=True,
     )
-    st.markdown(html, unsafe_allow_html=True)
